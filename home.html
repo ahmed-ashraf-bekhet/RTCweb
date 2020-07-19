@@ -13,7 +13,10 @@
 
     <script>
         const constraints = {
-            'video': true,
+            'video': {
+                        width: { min: 1280 },
+                        height: { min: 720 }
+                     },
             'audio': true
         }
         navigator.mediaDevices.getUserMedia(constraints)
