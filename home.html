@@ -16,7 +16,10 @@
           audio: true,
           video: true
         };
-        navigator.mediaDevices.getUserMedia(constraints)
+        navigator.mediaDevices.getUserMedia({
+          audio: true,
+          video: true
+        })
             .then(stream => {
                 console.log('Got MediaStream:', stream);
             })
