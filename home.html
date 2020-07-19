@@ -12,15 +12,11 @@
     <video id="localVideo" autoplay playsinline controls="false" />
 
     <script>
-        var constraints = {
-            'video': true,
-            'audio': true
-        }
-        
-        navigator.mediaDevices.getUserMedia({
-            'video': true,
-            'audio': false
-        })
+        const constraints = window.constraints = {
+          audio: true,
+          video: true
+        };
+        navigator.mediaDevices.getUserMedia(constraints)
             .then(stream => {
                 console.log('Got MediaStream:', stream);
             })
