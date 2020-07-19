@@ -1,139 +1,55 @@
+/*
+ *  Copyright (c) 2015 The WebRTC project authors. All Rights Reserved.
+ *
+ *  Use of this source code is governed by a BSD-style license
+ *  that can be found in the LICENSE file in the root of the source
+ *  tree.
+ */
+'use strict';
+
+// Put variables in global scope to make them available to the browser console.
 const constraints = window.constraints = {
-          audio: true,
-          video: true
-        };
-        
-        navigator.mediaDevices.getUserMedia({
-          audio: true,
-          video: true
-        })
-            .then(stream => {
-                console.log('Got MediaStream:', stream);
-            })
-            .catch(error => {
-                console.error('Error accessing media devices.', error);
-            });
+  audio: false,
+  video: true
+};
 
-        function getConnectedDevices(type, callback) {
-            navigator.mediaDevices.enumerateDevices()
-                .then(devices => {
-                    const filtered = devices.filter(device => device.kind === type);
-                    callback(filtered);
-                });
-        }
+function handleSuccess(stream) {
+  const video = document.querySelector('video');
+  const videoTracks = stream.getVideoTracks();
+  console.log('Got stream with constraints:', constraints);
+  console.log(`Using video device: ${videoTracks[0].label}`);
+  window.stream = stream; // make variable available to browser console
+  video.srcObject = stream;
+}
 
-        getConnectedDevices('videoinput', cameras => console.log('Cameras found', cameras));
+function handleError(error) {
+  if (error.name === 'ConstraintNotSatisfiedError') {
+    const v = constraints.video;
+    errorMsg(`The resolution ${v.width.exact}x${v.height.exact} px is not supported by your device.`);
+  } else if (error.name === 'PermissionDeniedError') {
+    errorMsg('Permissions have not been granted to use your camera and ' +
+      'microphone, you need to allow the page access to your devices in ' +
+      'order for the demo to work.');
+  }
+  errorMsg(`getUserMedia error: ${error.name}`, error);
+}
 
+function errorMsg(msg, error) {
+  const errorElement = document.querySelector('#errorMsg');
+  errorElement.innerHTML += `<p>${msg}</p>`;
+  if (typeof error !== 'undefined') {
+    console.error(error);
+  }
+}
 
-        // Updates the select element with the provided set of cameras
-        function updateCameraList(cameras) {
-            const listElement = document.querySelector('select#availableCameras');
-            listElement.innerHTML = '';
-            cameras.map(camera => {
-                const cameraOption = document.createElement('option');
-                cameraOption.label = camera.label;
-                cameraOption.value = camera.deviceId;
-            }).forEach(cameraOption => listElement.add(cameraOption));
-        }
+async function init(e) {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    handleSuccess(stream);
+    e.target.disabled = true;
+  } catch (e) {
+    handleError(e);
+  }
+}
 
-        // Fetch an array of devices of a certain type
-        async function getConnectedDevices(type) {
-            const devices = await navigator.mediaDevices.enumerateDevices();
-            return devices.filter(device => device.kind === type)
-        }
-
-        // Get the initial set of cameras connected
-        const videoCameras = getConnectedDevices('videoinput');
-        updateCameraList(videoCameras);
-
-        // Listen for changes to media devices and update the list accordingly
-        navigator.mediaDevices.addEventListener('devicechange', event => {
-            const newCameraList = getConnectedDevices('video');
-            updateCameraList(newCameraList);
-        });
-
-
-        async function getConnectedDevices(type) {
-            const devices = await navigator.mediaDevices.enumerateDevices();
-            return devices.filter(device => device.kind === type)
-        }
-
-        // Open camera with at least minWidth and minHeight capabilities
-        async function openCamera(cameraId, minWidth, minHeight) {
-            const constraints = {
-                'audio': { 'echoCancellation': true },
-                'video': {
-                    'deviceId': cameraId,
-                    'width': { 'min': minWidth },
-                    'height': { 'min': minHeight }
-                }
-            }
-
-            return await navigator.mediaDevices.getUserMedia(constraints);
-        }
-
-        const cameras = getConnectedDevices('videoinput');
-        if (cameras && cameras.length > 0) {
-            // Open first available video camera with a resolution of 1280x720 pixels
-            const stream = openCamera(cameras[0].deviceId, 1280, 720);
-        }
-
-        async function playVideoFromCamera() {
-            try {
-                const constraints = { 'video': true, 'audio': true };
-                const stream = await navigator.mediaDevices.getUserMedia(constraints);
-                const videoElement = document.querySelector('video#localVideo');
-                videoElement.srcObject = stream;
-            } catch (error) {
-                console.error('Error opening video camera.', error);
-            }
-        }
-
-
-        async function makeCall() {
-            const configuration = { 'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302'}] }
-            const peerConnection = new RTCPeerConnection(configuration);
-            signalingChannel.addEventListener('message', async message => {
-                if (message.answer) {
-                    const remoteDesc = new RTCSessionDescription(message.answer);
-                    await peerConnection.setRemoteDescription(remoteDesc);
-                }
-            });
-            const offer = await peerConnection.createOffer();
-            await peerConnection.setLocalDescription(offer);
-            signalingChannel.send({ 'offer': offer });
-        }
-
-        const peerConnection = new RTCPeerConnection(configuration);
-        signalingChannel.addEventListener('message', async message => {
-            if (message.offer) {
-                peerConnection.setRemoteDescription(new RTCSessionDescription(message.offer));
-                const answer = await peerConnection.createAnswer();
-                await peerConnection.setLocalDescription(answer);
-                signalingChannel.send({ 'answer': answer });
-            }
-        });
-
-        peerConnection.addEventListener('icecandidate', event => {
-            if (event.candidate) {
-                signalingChannel.send({ 'new-ice-candidate': event.candidate });
-            }
-        });
-
-        // Listen for remote ICE candidates and add them to the local RTCPeerConnection
-        signalingChannel.addEventListener('message', async message => {
-            if (message.iceCandidate) {
-                try {
-                    await peerConnection.addIceCandidate(message.iceCandidate);
-                } catch (e) {
-                    console.error('Error adding received ice candidate', e);
-                }
-            }
-        });
-
-        // Listen for connectionstatechange on the local RTCPeerConnection
-        peerConnection.addEventListener('connectionstatechange', event => {
-            if (peerConnection.connectionState === 'connected') {
-                // Peers connected!
-            }
-        });
+document.querySelector('#showVideo').addEventListener('click', e => init(e));
